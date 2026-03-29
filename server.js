@@ -38,6 +38,16 @@ const orderSchema = new mongoose.Schema({
 
 const Order = mongoose.model('Order', orderSchema);
 
+const productSchema = new mongoose.Schema({
+    name:String,
+    price:Number,
+    image:String,
+    description:String,
+    stock:Number
+});
+
+const Product = mongoose.model('Product', productSchema);
+
 // ================= MIDDLEWARE =================
 
 // تحقق تسجيل دخول
@@ -127,6 +137,29 @@ app.get('/api/orders', auth, admin, async (req,res)=>{
 app.delete('/api/orders', auth, admin, async (req,res)=>{
     await Order.deleteMany({});
     res.json({success:true});
+});
+
+app.post('/api/products', auth, admin, async (req,res)=>{
+    try{
+        const product = req.body;
+
+        await Product.create(product);
+
+        res.json({success:true});
+    }catch(err){
+        console.error(err);
+        res.json({success:false});
+    }
+});
+
+app.get('/api/products', async (req,res)=>{
+    const products = await Product.find();
+    res.json(products);
+});
+
+app.get('/api/products', async (req,res)=>{
+    const products = await Product.find();
+    res.json(products);
 });
 
 const PORT = process.env.PORT || 3000;
