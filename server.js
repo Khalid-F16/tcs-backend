@@ -7,38 +7,40 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* ================= MongoDB ================= */
-
-// ⚠️ عدل الرابط هنا (حط بياناتك الصح)
-mongoose.connect("mongodb+srv://TwilightCity:FK10149KF@twilightcity.gaqdkk1.mongodb.net/tcs_store?retryWrites=true&w=majority")
+// 🟢 اتصال Mongo من ENV
+mongoose.connect(process.env.MONGO_URI)
 .then(()=> console.log("✅ MongoDB connected"))
-.catch(err=> console.log("❌ Mongo Error:", err));
+.catch(err=> console.log(err));
 
-/* ================= Models ================= */
+// ================= MODELS =================
 
-const User = mongoose.model('User',{
-    username: String,
-    email: String,
-    password: String
+// مستخدم
+const userSchema = new mongoose.Schema({
+    username:String,
+    email:String,
+    password:String
 });
 
-const Order = mongoose.model('Order',{
-    username: String,
-    email: String,
-    productName: String,
-    price: String,
-    paymentId: String,
-    date: String
+const User = mongoose.model('User', userSchema);
+
+// طلب
+const orderSchema = new mongoose.Schema({
+    username:String,
+    email:String,
+    productName:String,
+    price:Number,
+    paymentId:String,
+    date:String
 });
 
-/* ================= Routes ================= */
+const Order = mongoose.model('Order', orderSchema);
+
+// ================= ROUTES =================
 
 // الصفحة الرئيسية
 app.get('/', (req,res)=>{
     res.send('Backend is working ✅');
 });
-
-/* ================= USERS ================= */
 
 // تسجيل
 app.post('/api/register', async (req,res)=>{
@@ -46,27 +48,15 @@ app.post('/api/register', async (req,res)=>{
         const {username,email,password} = req.body;
 
         const exist = await User.findOne({email});
-        if(exist){
-            return res.json({success:false,message:'البريد مستخدم'});
-        }
-
-        const strong = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-        if(!strong.test(password)){
-            return res.json({success:false,message:'كلمة المرور ضعيفة'});
-        }
+        if(exist) return res.json({success:false,message:'البريد مستخدم'});
 
         const hash = await bcrypt.hash(password,10);
 
-        await User.create({
-            username,
-            email,
-            password:hash
-        });
+        await User.create({username,email,password:hash});
 
         res.json({success:true,message:'تم إنشاء الحساب'});
     }catch(err){
-        console.error(err);
-        res.json({success:false,message:'خطأ في السيرفر'});
+        res.json({success:false,message:'خطأ'});
     }
 });
 
@@ -76,14 +66,10 @@ app.post('/api/login', async (req,res)=>{
         const {email,password} = req.body;
 
         const user = await User.findOne({email});
-        if(!user){
-            return res.json({success:false,message:'البريد غير صحيح'});
-        }
+        if(!user) return res.json({success:false,message:'خطأ'});
 
         const match = await bcrypt.compare(password,user.password);
-        if(!match){
-            return res.json({success:false,message:'كلمة المرور خاطئة'});
-        }
+        if(!match) return res.json({success:false,message:'خطأ'});
 
         res.json({
             success:true,
@@ -92,32 +78,19 @@ app.post('/api/login', async (req,res)=>{
                 email:user.email
             }
         });
-
-    }catch(err){
-        console.error(err);
-        res.json({success:false,message:'خطأ في السيرفر'});
+    }catch{
+        res.json({success:false});
     }
 });
 
-/* ================= ORDERS ================= */
-
 // حفظ طلب
 app.post('/api/orders', async (req,res)=>{
-    try{
-        const order = req.body;
+    const order = req.body;
+    order.date = new Date().toLocaleString();
 
-        await Order.create({
-            ...order,
-            date: new Date().toLocaleString()
-        });
+    await Order.create(order);
 
-        console.log("📦 Order saved");
-
-        res.json({success:true});
-    }catch(err){
-        console.error(err);
-        res.json({success:false});
-    }
+    res.json({success:true});
 });
 
 // جلب الطلبات
@@ -132,8 +105,5 @@ app.delete('/api/orders', async (req,res)=>{
     res.json({success:true});
 });
 
-/* ================= START ================= */
-
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, ()=>console.log('🚀 Server running on port '+PORT));
+app.listen(PORT, ()=>console.log('🚀 Server running'));
