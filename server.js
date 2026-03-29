@@ -1,46 +1,55 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const bcrypt = require('bcrypt');
+const mongoose = require('mongoose');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🟢 الصفحة الرئيسية (عشان ما يطلع Cannot GET /)
+/* ================= MongoDB ================= */
+
+// ⚠️ عدل الرابط هنا (حط بياناتك الصح)
+mongoose.connect("mongodb+srv://TwilightCity:%40FK10149KF%40@twilightcity.xxxxx.mongodb.net/tcs_store?retryWrites=true&w=majority")
+.then(()=> console.log("✅ MongoDB connected"))
+.catch(err=> console.log("❌ Mongo Error:", err));
+
+/* ================= Models ================= */
+
+const User = mongoose.model('User',{
+    username: String,
+    email: String,
+    password: String
+});
+
+const Order = mongoose.model('Order',{
+    username: String,
+    email: String,
+    productName: String,
+    price: String,
+    paymentId: String,
+    date: String
+});
+
+/* ================= Routes ================= */
+
+// الصفحة الرئيسية
 app.get('/', (req,res)=>{
     res.send('Backend is working ✅');
 });
 
-// ملفات التخزين
-const USERS_FILE = './users.json';
-const ORDERS_FILE = './orders.json';
-
-// قراءة JSON
-function readJSON(file){
-    if(!fs.existsSync(file)) fs.writeFileSync(file,'[]');
-    return JSON.parse(fs.readFileSync(file));
-}
-
-// كتابة JSON
-function writeJSON(file,data){
-    fs.writeFileSync(file, JSON.stringify(data,null,2));
-}
-
-// ================= USERS =================
+/* ================= USERS ================= */
 
 // تسجيل
 app.post('/api/register', async (req,res)=>{
     try{
         const {username,email,password} = req.body;
 
-        const users = readJSON(USERS_FILE);
-
-        if(users.find(u=>u.email===email)){
+        const exist = await User.findOne({email});
+        if(exist){
             return res.json({success:false,message:'البريد مستخدم'});
         }
 
-        // 🔐 تحقق قوة الباسورد
         const strong = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
         if(!strong.test(password)){
             return res.json({success:false,message:'كلمة المرور ضعيفة'});
@@ -48,8 +57,11 @@ app.post('/api/register', async (req,res)=>{
 
         const hash = await bcrypt.hash(password,10);
 
-        users.push({username,email,password:hash});
-        writeJSON(USERS_FILE,users);
+        await User.create({
+            username,
+            email,
+            password:hash
+        });
 
         res.json({success:true,message:'تم إنشاء الحساب'});
     }catch(err){
@@ -62,53 +74,66 @@ app.post('/api/register', async (req,res)=>{
 app.post('/api/login', async (req,res)=>{
     try{
         const {email,password} = req.body;
-        const users = readJSON(USERS_FILE);
 
-        const user = users.find(u=>u.email===email);
-        if(!user) return res.json({success:false,message:'بيانات خاطئة'});
+        const user = await User.findOne({email});
+        if(!user){
+            return res.json({success:false,message:'البريد غير صحيح'});
+        }
 
         const match = await bcrypt.compare(password,user.password);
-        if(!match) return res.json({success:false,message:'بيانات خاطئة'});
+        if(!match){
+            return res.json({success:false,message:'كلمة المرور خاطئة'});
+        }
 
         res.json({
             success:true,
-            user:{username:user.username,email:user.email}
+            user:{
+                username:user.username,
+                email:user.email
+            }
         });
+
     }catch(err){
         console.error(err);
         res.json({success:false,message:'خطأ في السيرفر'});
     }
 });
 
-// ================= ORDERS =================
+/* ================= ORDERS ================= */
 
 // حفظ طلب
-app.post('/api/orders',(req,res)=>{
-    const orders = readJSON(ORDERS_FILE);
-    const order = req.body;
+app.post('/api/orders', async (req,res)=>{
+    try{
+        const order = req.body;
 
-    order.date = new Date().toLocaleString();
+        await Order.create({
+            ...order,
+            date: new Date().toLocaleString()
+        });
 
-    orders.push(order);
-    writeJSON(ORDERS_FILE,orders);
+        console.log("📦 Order saved");
 
-    console.log("📦 طلب:",order);
-
-    res.json({success:true});
+        res.json({success:true});
+    }catch(err){
+        console.error(err);
+        res.json({success:false});
+    }
 });
 
 // جلب الطلبات
-app.get('/api/orders',(req,res)=>{
-    res.json(readJSON(ORDERS_FILE));
+app.get('/api/orders', async (req,res)=>{
+    const orders = await Order.find();
+    res.json(orders);
 });
 
-// حذف الطلبات (للأدمن)
-app.delete('/api/orders',(req,res)=>{
-    writeJSON(ORDERS_FILE,[]);
+// حذف الطلبات
+app.delete('/api/orders', async (req,res)=>{
+    await Order.deleteMany({});
     res.json({success:true});
 });
 
-// 🟢 PORT مهم لـ Render
+/* ================= START ================= */
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, ()=>console.log('🚀 Server running on port '+PORT));
