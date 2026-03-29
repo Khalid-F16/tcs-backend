@@ -10,7 +10,7 @@ app.use(express.json());
 /* ================= MongoDB ================= */
 
 // ⚠️ عدل الرابط هنا (حط بياناتك الصح)
-mongoose.connect("mongodb+srv://TwilightCity:%40FK10149KF%40@twilightcity.xxxxx.mongodb.net/tcs_store?retryWrites=true&w=majority")
+mongoose.connect("mongodb+srv://TwilightCity:FK10149KF@twilightcity.gaqdkk1.mongodb.net/tcs_store?retryWrites=true&w=majority")
 .then(()=> console.log("✅ MongoDB connected"))
 .catch(err=> console.log("❌ Mongo Error:", err));
 
