@@ -1,0 +1,55 @@
+body{
+    margin:0;
+    display:flex;
+    font-family:system-ui;
+    background:#0f172a;
+    color:white;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:220px;
+    background:#020617;
+    padding:20px;
+    height:100vh;
+}
+
+.sidebar button{
+    width:100%;
+    padding:10px;
+    margin-bottom:10px;
+    background:#1e293b;
+    border:none;
+    color:white;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+/* MAIN */
+.main{
+    flex:1;
+    padding:20px;
+}
+
+.tab{display:none}
+.tab.active{display:block}
+
+/* CARDS */
+.cards{
+    display:flex;
+    gap:20px;
+}
+
+.card{
+    background:#020617;
+    padding:20px;
+    border-radius:10px;
+}
+
+/* LIST */
+.item{
+    background:#020617;
+    margin-bottom:10px;
+    padding:10px;
+    border-radius:8px;
+}

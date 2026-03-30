@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>لوحة التحكم</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>👑 الأدمن</h2>
+
+    <button onclick="showTab('add')">➕ إضافة منتج</button>
+    <button onclick="showTab('orders')">🧾 الطلبات</button>
+    <button onclick="showTab('users')">👥 المستخدمين</button>
+
+    <button onclick="backToStore()">⬅ رجوع</button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+    <!-- ADD PRODUCT -->
+    <div id="add" class="tab active">
+        <h2>إضافة منتج</h2>
+
+        <input id="pname" placeholder="اسم المنتج">
+<input id="pprice" placeholder="السعر">
+<input id="pdesc" placeholder="الوصف">
+<input type="file" id="pimg">
+
+<button onclick="addProduct()">إضافة</button>
+    </div>
+
+    <!-- ORDERS -->
+    <div id="orders" class="tab">
+        <h2>الطلبات</h2>
+        <div id="ordersList"></div>
+    </div>
+
+    <!-- USERS -->
+    <div id="users" class="tab">
+        <h2>المستخدمين</h2>
+        <div id="usersList"></div>
+    </div>
+
+</div>
+
+</div>
+<script>
+function showTab(tab){
+    document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
+    document.getElementById(tab).style.display='block';
+
+    if(tab === "orders") loadOrders();
+    if(tab === "users") loadUsers();
+}
+
+// إشعار احترافي
+function notify(msg,type="success"){
+    const box = document.createElement("div");
+    box.className = "notify "+type;
+    box.innerText = msg;
+
+    document.body.appendChild(box);
+
+    setTimeout(()=>box.remove(),3000);
+}
+</script>
+<script>
+function showTab(tab){
+    document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
+    document.getElementById(tab).style.display='block';
+}
+</script>
+<script src="app.js"></script>
+</body>
+</html>
