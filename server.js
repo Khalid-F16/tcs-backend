@@ -1,130 +1,90 @@
-// ================= IMPORTS =================
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads'));
 
-// 🔐 سر التوكن
 const SECRET = "TCS_SECRET_123";
 
 // ================= DATABASE =================
 mongoose.connect(process.env.MONGO_URI)
-.then(()=> console.log("✅ MongoDB connected"))
+.then(()=> console.log("✅ Mongo Connected"))
 .catch(err=> console.log(err));
 
 // ================= MODELS =================
-
-// 👤 المستخدم
-const userSchema = new mongoose.Schema({
+const User = mongoose.model('User', new mongoose.Schema({
     username:String,
     email:String,
     password:String,
     role:{type:String, default:"user"}
-});
-const User = mongoose.model('User', userSchema);
+}));
 
-// 📦 الطلبات
-const orderSchema = new mongoose.Schema({
-    username:String,
-    email:String,
-    productName:String,
-    price:Number,
-    paymentId:String,
-    date:String
-});
-const Order = mongoose.model('Order', orderSchema);
-
-// 🛒 المنتجات
-const productSchema = new mongoose.Schema({
+const Product = mongoose.model('Product', new mongoose.Schema({
     name:String,
     price:Number,
     image:String,
     description:String,
     stock:Number
+}));
+
+const Order = mongoose.model('Order', new mongoose.Schema({
+    username:String,
+    email:String,
+    items:Array,
+    total:Number,
+    date:String
+}));
+
+// ================= UPLOAD =================
+const storage = multer.diskStorage({
+    destination:(req,file,cb)=> cb(null,'uploads'),
+    filename:(req,file,cb)=> cb(null,Date.now()+path.extname(file.originalname))
 });
-const Product = mongoose.model('Product', productSchema);
+const upload = multer({storage});
 
-// ================= MIDDLEWARE =================
-
-// 🔐 تحقق تسجيل الدخول
+// ================= AUTH =================
 function auth(req,res,next){
     const token = req.headers.authorization;
-    if(!token) return res.status(401).json({message:"Not logged in"});
-
+    if(!token) return res.status(401).json({message:"unauthorized"});
     try{
-        const decoded = jwt.verify(token, SECRET);
-        req.user = decoded;
+        req.user = jwt.verify(token,SECRET);
         next();
     }catch{
-        res.status(401).json({message:"Invalid token"});
+        res.status(401).json({message:"invalid"});
     }
 }
 
-// 👑 تحقق أدمن
 function admin(req,res,next){
     if(req.user.role !== "admin"){
-        return res.status(403).json({message:"Not admin"});
+        return res.status(403).json({message:"not admin"});
     }
     next();
 }
 
 // ================= ROUTES =================
 
-// الصفحة الرئيسية
-app.get('/', (req,res)=>{
-    res.send('Backend is working ✅');
-});
-
-// 🟢 إحصائيات
-app.get('/api/dashboard', auth, admin, async (req,res)=>{
-    const users = await User.countDocuments();
-    const orders = await Order.countDocuments();
-
-    const allOrders = await Order.find();
-
-    const revenue = allOrders.reduce((sum,o)=> sum + o.price, 0);
-
-    res.json({
-        users,
-        orders,
-        revenue
-    });
-});
-
-// 🟢 جلب المستخدمين (admin)
-app.get('/api/users', auth, admin, async (req,res)=>{
-    const users = await User.find({}, '-password');
-    res.json(users);
-});
-
-// ================= AUTH =================
-
-// تسجيل
+// REGISTER
 app.post('/api/register', async (req,res)=>{
     const {username,email,password} = req.body;
 
     const exist = await User.findOne({email});
-    if(exist){
-        return res.json({success:false,message:'البريد مستخدم'});
-    }
+    if(exist) return res.json({success:false,message:"مستخدم موجود"});
 
     const hash = await bcrypt.hash(password,10);
 
-    await User.create({
-        username,
-        email,
-        password:hash
-    });
+    await User.create({username,email,password:hash});
 
-    res.json({success:true,message:'تم إنشاء الحساب'});
+    res.json({success:true,message:"تم التسجيل"});
 });
 
-// تسجيل دخول
+// LOGIN
 app.post('/api/login', async (req,res)=>{
     const {email,password} = req.body;
 
@@ -136,9 +96,8 @@ app.post('/api/login', async (req,res)=>{
 
     const token = jwt.sign({
         id:user._id,
-        email:user.email,
         role:user.role
-    }, SECRET);
+    },SECRET);
 
     res.json({
         success:true,
@@ -146,63 +105,55 @@ app.post('/api/login', async (req,res)=>{
         user:{
             username:user.username,
             email:user.email,
-            role:user.role // 🔥 مهم
+            role:user.role
         }
     });
 });
 
-// ================= ORDERS =================
+// PRODUCTS
+app.post('/api/products', auth, admin, upload.single('image'), async (req,res)=>{
+    const product = {
+        name:req.body.name,
+        price:Number(req.body.price),
+        description:req.body.description,
+        stock:Number(req.body.stock),
+        image:'/uploads/' + req.file.filename
+    };
 
-// إضافة طلب (محمي)
+    await Product.create(product);
+    res.json({success:true});
+});
+
+app.get('/api/products', async (req,res)=>{
+    res.json(await Product.find());
+});
+
+// ORDERS
 app.post('/api/orders', auth, async (req,res)=>{
     const order = req.body;
     order.date = new Date().toLocaleString();
-
     await Order.create(order);
-
     res.json({success:true});
 });
 
-// جلب الطلبات (أدمن فقط)
+// DASHBOARD
+app.get('/api/dashboard', auth, admin, async (req,res)=>{
+    const users = await User.countDocuments();
+    const orders = await Order.countDocuments();
+    const all = await Order.find();
+    const revenue = all.reduce((a,b)=>a+b.total,0);
+
+    res.json({users,orders,revenue});
+});
+
+app.get('/api/users', auth, admin, async (req,res)=>{
+    res.json(await User.find({},'-password'));
+});
+
 app.get('/api/orders', auth, admin, async (req,res)=>{
-    const orders = await Order.find();
-    res.json(orders);
-});
-
-// حذف الطلبات
-app.delete('/api/orders', auth, admin, async (req,res)=>{
-    await Order.deleteMany({});
-    res.json({success:true});
-});
-
-// ================= PRODUCTS =================
-
-// إضافة منتج (أدمن)
-app.post('/api/products', auth, admin, async (req,res)=>{
-    try{
-        await Product.create(req.body);
-        res.json({success:true});
-    }catch(err){
-        console.error(err);
-        res.json({success:false});
-    }
-});
-
-// جلب المنتجات
-app.get('/api/products', async (req,res)=>{
-    const products = await Product.find();
-    res.json(products);
-});
-
-// حذف منتج
-app.delete('/api/products/:id', auth, admin, async (req,res)=>{
-    await Product.findByIdAndDelete(req.params.id);
-    res.json({success:true});
+    res.json(await Order.find());
 });
 
 // ================= SERVER =================
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, ()=>{
-    console.log('🚀 Server running on port ' + PORT);
-});
+app.listen(PORT, ()=> console.log("🚀 Server Running"));
