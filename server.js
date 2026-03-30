@@ -80,6 +80,28 @@ app.get('/', (req,res)=>{
     res.send('Backend is working ✅');
 });
 
+// 🟢 إحصائيات
+app.get('/api/dashboard', auth, admin, async (req,res)=>{
+    const users = await User.countDocuments();
+    const orders = await Order.countDocuments();
+
+    const allOrders = await Order.find();
+
+    const revenue = allOrders.reduce((sum,o)=> sum + o.price, 0);
+
+    res.json({
+        users,
+        orders,
+        revenue
+    });
+});
+
+// 🟢 جلب المستخدمين (admin)
+app.get('/api/users', auth, admin, async (req,res)=>{
+    const users = await User.find({}, '-password');
+    res.json(users);
+});
+
 // ================= AUTH =================
 
 // تسجيل
