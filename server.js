@@ -65,13 +65,18 @@ const upload = multer({storage});
 
 // ================= AUTH =================
 function auth(req,res,next){
-    const token = req.headers.authorization;
-    if(!token) return res.status(401).json({});
+    const header = req.headers.authorization;
+
+    if(!header) return res.status(401).json({message:"No token"});
+
+    const token = header.split(" ")[1];
+
     try{
-        req.user = jwt.verify(token,SECRET);
+        const decoded = jwt.verify(token, SECRET);
+        req.user = decoded;
         next();
     }catch{
-        res.status(401).json({});
+        res.status(401).json({message:"Invalid token"});
     }
 }
 
