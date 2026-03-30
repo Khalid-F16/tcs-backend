@@ -191,3 +191,33 @@ input, select{
     from{opacity:0; transform:translateY(-10px);}
     to{opacity:1;}
 }
+.topbar{
+    display:flex;
+    justify-content:space-between;
+    padding:15px;
+    background:#020617;
+}
+
+.menu-btn{
+    font-size:24px;
+    cursor:pointer;
+}
+
+.dropdown{
+    position:absolute;
+    top:60px;
+    right:20px;
+    background:#020617;
+    padding:10px;
+    border-radius:8px;
+    display:none;
+}
+
+.dropdown div{
+    padding:10px;
+    cursor:pointer;
+}
+
+.dropdown div:hover{
+    background:#1e293b;
+}

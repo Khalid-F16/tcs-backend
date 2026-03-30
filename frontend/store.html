@@ -8,6 +8,24 @@
 
 <body>
 
+    <div class="topbar">
+
+    <div class="menu-btn" onclick="toggleMenu()">☰</div>
+
+    <div class="right-side">
+        <button onclick="toggleCart()">🛒</button>
+    </div>
+
+</div>
+
+<div id="dropdownMenu" class="dropdown">
+
+    <div id="adminLink" style="display:none;" onclick="goAdmin()">لوحة التحكم</div>
+
+    <div onclick="logout()">تسجيل خروج</div>
+
+</div>
+
 <div class="layout">
 
     <!-- المنتجات -->
@@ -60,7 +78,8 @@
         <p id="modalDesc"></p>
         <h3 id="modalPrice"></h3>
 
-        <button onclick="buyFromModal()">شراء الآن</button>
+        <div id="paypal-container"></div>
+<button onclick="checkout()">💳 ادفع الآن</button>
     </div>
 </div>
 

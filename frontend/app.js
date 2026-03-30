@@ -1,10 +1,26 @@
-const API="https://tcs-backend-oxa4.onrender.com";
+const API = window.location.hostname === "localhost"
+  ? "http://localhost:3000"
+  : "https://tcs-backend-oxa4.onrender.com";
 
 let cart=[];
 let allProducts = [];
 let selectedProduct = null;
 
-// 👁 إظهار كلمة المرور
+// ================= USER =================
+const user = JSON.parse(localStorage.getItem('user'));
+
+// حماية الصفحات
+if(window.location.pathname.includes("store") && !user){
+    location='index.html';
+}
+
+if(window.location.pathname.includes("dashboard")){
+    if(!user || user.role !== "admin"){
+        location='store.html';
+    }
+}
+
+// ================= PASSWORD =================
 function togglePassword(){
     const input = document.getElementById("password");
     input.type = input.type === "password" ? "text" : "password";
@@ -25,7 +41,12 @@ async function login(){
 
     if(data.success){
         localStorage.setItem('token',data.token);
-        localStorage.setItem('user',JSON.stringify(data.user));
+
+        localStorage.setItem('user',JSON.stringify({
+            ...data.user,
+            role: data.user.role || "user"
+        }));
+
         location='store.html';
     }else{
         alert("خطأ");
@@ -55,7 +76,6 @@ let totalPages = 1;
 async function loadProducts(page=1){
 
     currentPage = page;
-
     products.innerHTML = "⏳ جاري التحميل...";
 
     const res = await fetch(API+`/api/products?page=${page}&limit=6`);
@@ -72,8 +92,6 @@ async function loadProducts(page=1){
 function renderProducts(list){
     products.innerHTML='';
 
-    const user = JSON.parse(localStorage.getItem('user'));
-
     list.forEach(p=>{
 
         let adminButtons = "";
@@ -88,7 +106,7 @@ function renderProducts(list){
         products.innerHTML+=`
         <div class="product" onclick='openProduct(${JSON.stringify(p)})'>
 
-            <img src="${p.image}">
+            <img src="${API + p.image}">
             <h3>${p.name}</h3>
             <p>${p.price}$</p>
 
@@ -100,20 +118,6 @@ function renderProducts(list){
 
         </div>`;
     });
-}
-function renderPagination(){
-
-    pagination.innerHTML = "";
-
-    for(let i=1;i<=totalPages;i++){
-
-        pagination.innerHTML += `
-        <button 
-            class="${i===currentPage ? 'active':''}" 
-            onclick="loadProducts(${i})">
-            ${i}
-        </button>`;
-    }
 }
 
 // ================= FILTER =================
@@ -135,11 +139,27 @@ function applyFilters(){
     renderProducts(filtered);
 }
 
+// ================= PAGINATION =================
+function renderPagination(){
+
+    pagination.innerHTML = "";
+
+    for(let i=1;i<=totalPages;i++){
+
+        pagination.innerHTML += `
+        <button 
+            class="${i===currentPage ? 'active':''}" 
+            onclick="loadProducts(${i})">
+            ${i}
+        </button>`;
+    }
+}
+
 // ================= MODAL =================
 function openProduct(p){
     selectedProduct = p;
 
-    modalImage.src = p.image;
+    modalImage.src = API + p.image;
     modalName.innerText = p.name;
     modalDesc.innerText = p.description;
     modalPrice.innerText = p.price + "$";
@@ -154,7 +174,6 @@ function closeModal(){
 function buyFromModal(){
     addToCart(selectedProduct.name, selectedProduct.price);
     closeModal();
-    notify("🛒 تمت إضافة المنتج للسلة");
 }
 
 // ================= CART =================
@@ -173,104 +192,98 @@ function renderCart(){
             <button onclick="removeFromCart(${index})">❌</button>
         </div>`;
     });
-
-    cartItems.innerHTML += `
-    <button onclick="clearCart()" style="background:red;margin-top:10px;">
-        تفريغ السلة
-    </button>`;
 }
 
 function removeFromCart(index){
     cart.splice(index,1);
     renderCart();
-    notify("🗑 تم حذف المنتج");
 }
 
 function clearCart(){
     cart = [];
     renderCart();
-    notify("🧹 تم تفريغ السلة");
 }
 
 // ================= PAYPAL =================
 function checkout(){
+
+    if(cart.length === 0){
+        alert("السلة فاضية");
+        return;
+    }
+
     document.getElementById('paypal-container').innerHTML = "";
 
     paypal.Buttons({
         createOrder: (data, actions)=>actions.order.create({
             purchase_units:[{
-                amount:{value:cart.reduce((a,b)=>a+b.price,0)}
+                amount:{
+                    value: cart.reduce((a,b)=>a+b.price,0)
+                }
             }]
         }),
-        onApprove: (data, actions)=>actions.order.capture().then(()=>{
-            notify("💳 تم الدفع بنجاح");
+        onApprove: async (data, actions)=>{
+            await actions.order.capture();
+
+            // 🔥 تسجيل الطلب
+            await fetch(API+'/api/orders',{
+                method:'POST',
+                headers:{
+                    'Content-Type':'application/json',
+                    'Authorization':"Bearer " + localStorage.getItem('token')
+                },
+                body:JSON.stringify({
+                    username: user.username,
+                    price: cart.reduce((a,b)=>a+b.price,0)
+                })
+            });
+
+            alert("تم الدفع");
             cart=[];
             renderCart();
-        })
+        }
     }).render('#paypal-container');
 }
 
 // ================= ADMIN =================
 async function addProduct(){
-    try{
 
-        const name = document.getElementById('pname').value;
-        const price = document.getElementById('pprice').value;
-        const desc = document.getElementById('pdesc').value;
-        const img = document.getElementById('pimg').files[0];
+    const form=new FormData();
 
-        if(!name || !price){
-            notify("❌ املأ البيانات","error");
-            return;
-        }
+    form.append("name",pname.value);
+    form.append("price",pprice.value);
+    form.append("description",pdesc.value);
+    form.append("image",pimg.files[0]);
 
-        const form=new FormData();
+    const res = await fetch(API+'/api/products',{
+        method:'POST',
+        headers:{
+            'Authorization':"Bearer " + localStorage.getItem('token')
+        },
+        body:form
+    });
 
-        form.append("name",name);
-        form.append("price",price);
-        form.append("description",desc);
-        form.append("image",img);
+    const data = await res.json();
 
-        const res = await fetch(API+'/api/products',{
-            method:'POST',
-            headers:{
-                'Authorization':localStorage.getItem('token')
-            },
-            body:form
-        });
-
-        const data = await res.json();
-
-        if(data.success){
-            notify("✅ تم إضافة المنتج");
-
-            // تنظيف الحقول
-            pname.value="";
-            pprice.value="";
-            pdesc.value="";
-            pimg.value="";
-
-        }else{
-            notify("❌ فشل","error");
-        }
-
-    }catch(err){
-        console.error(err);
-        notify("❌ خطأ","error");
+    if(data.success){
+        alert("تم الإضافة");
+        loadProducts();
     }
 }
 
 async function deleteProduct(id){
     await fetch(API+'/api/products/'+id,{
         method:'DELETE',
-        headers:{'Authorization':localStorage.getItem('token')}
+        headers:{
+            'Authorization':"Bearer " + localStorage.getItem('token')
+        }
     });
 
-    notify("🗑 تم الحذف");
     loadProducts();
 }
 
 function editProduct(id,name,price,desc){
+
     const newName = prompt("اسم المنتج",name);
     const newPrice = prompt("السعر",price);
     const newDesc = prompt("الوصف",desc);
@@ -279,7 +292,7 @@ function editProduct(id,name,price,desc){
         method:'PUT',
         headers:{
             'Content-Type':'application/json',
-            'Authorization':localStorage.getItem('token')
+            'Authorization':"Bearer " + localStorage.getItem('token')
         },
         body:JSON.stringify({
             name:newName,
@@ -288,47 +301,19 @@ function editProduct(id,name,price,desc){
         })
     });
 
-    notify("✏️ تم التعديل");
     loadProducts();
 }
 
-// ================= ORDERS =================
-async function loadOrders(){
-    const res = await fetch(API+'/api/orders',{
-        headers:{'Authorization':localStorage.getItem('token')}
-    });
-
-    const data = await res.json();
-
-    ordersList.innerHTML='';
-
-    data.forEach(o=>{
-        ordersList.innerHTML+=`
-        <div class="item">
-            👤 ${o.username}<br>
-            💰 ${o.price}$<br>
-            📅 ${o.date}
-        </div>`;
-    });
+// ================= MENU =================
+function toggleMenu(){
+    const menu = document.getElementById('dropdownMenu');
+    menu.style.display = menu.style.display === "block" ? "none" : "block";
 }
 
-// ================= USERS =================
-async function loadUsers(){
-    const res = await fetch(API+'/api/users',{
-        headers:{'Authorization':localStorage.getItem('token')}
-    });
-
-    const data = await res.json();
-
-    usersList.innerHTML='';
-
-    data.forEach(u=>{
-        usersList.innerHTML+=`
-        <div class="item">
-            👤 ${u.username}<br>
-            📧 ${u.email}
-        </div>`;
-    });
+// ================= CART BUTTON =================
+function toggleCart(){
+    const cartBox = document.getElementById('cartItems');
+    cartBox.style.display = cartBox.style.display === "block" ? "none" : "block";
 }
 
 // ================= LOGOUT =================
@@ -339,37 +324,13 @@ function logout(){
 
 // ================= INIT =================
 if(window.location.pathname.includes("store")){
-    const user = JSON.parse(localStorage.getItem('user'));
-
-    if(!user){
-        location='index.html';
-    }else{
+    if(user){
         usernameBox.innerText=user.username;
 
         if(user.role==="admin"){
-            adminBtn.style.display="block";
+            document.getElementById('adminLink').style.display="block";
         }
 
         loadProducts();
     }
-}
-// حماية الداشبورد + تحميله
-if(window.location.pathname.includes("dashboard")){
-
-    const user = JSON.parse(localStorage.getItem('user'));
-
-    if(!user){
-        location='index.html';
-    }else if(user.role !== "admin"){
-        alert("❌ ليس لديك صلاحية");
-        location='store.html';
-    }else{
-        // تحميل أول تبويب
-        setTimeout(()=>{
-            showTab('add');
-        },100);
-    }
-}
-function backToStore(){
-    window.location.href = "store.html";
 }
